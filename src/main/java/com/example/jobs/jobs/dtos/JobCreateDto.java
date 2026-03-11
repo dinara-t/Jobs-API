@@ -1,0 +1,62 @@
+package com.example.jobs.jobs.dtos;
+
+import java.time.LocalDate;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public class JobCreateDto {
+
+    @NotBlank
+    private String name;
+
+    @NotNull
+    private LocalDate startDate;
+
+    @NotNull
+    private LocalDate endDate;
+
+    private Long tempId;
+
+    public JobCreateDto() {
+    }
+
+    public JobCreateDto(String name, LocalDate startDate, LocalDate endDate, Long tempId) {
+        this.name = name;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.tempId = tempId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public Long getTempId() {
+        return tempId;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
+    public void setTempId(Long tempId) {
+        this.tempId = tempId;
+    }
+}
