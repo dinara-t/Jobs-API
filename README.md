@@ -187,13 +187,9 @@ Example `.env`:
 
 ## Future Improvements
 
-- Add comprehensive unit tests
-- Add integration tests for API endpoints
-- Improve API test coverage
-- Implement refresh token authentication
+- Add e2e tests
 - Add pagination and filtering
-- Dockerise the application
+- Add temp availability checking before assignment
+- Introduce job status tracking
+- Replace hardcoded seed data with factory-based data generation using Faker
 - Deploy backend to AWS EC2
-- Use AWS RDS for the database
-- Add CI/CD pipeline
-- Add monitoring and logging
