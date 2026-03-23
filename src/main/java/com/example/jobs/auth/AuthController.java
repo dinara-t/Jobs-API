@@ -2,6 +2,8 @@ package com.example.jobs.auth;
 
 import java.util.Optional;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,11 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.jobs.auth.config.JwtProperties;
 import com.example.jobs.auth.dtos.LoginRequest;
-import com.example.jobs.auth.dtos.LoginResponse;
 import com.example.jobs.auth.jwt.JwtUtils;
 
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -28,52 +28,62 @@ public class AuthController {
     private final JwtUtils jwtUtils;
     private final JwtProperties jwtProperties;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtUtils jwtUtils, JwtProperties jwtProperties) {
+    public AuthController(
+            AuthenticationManager authenticationManager,
+            JwtUtils jwtUtils,
+            JwtProperties jwtProperties
+    ) {
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.jwtProperties = jwtProperties;
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<Void> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
-   String token = jwtUtils.generateToken(authentication);
+        String token = jwtUtils.generateToken(authentication);
+        String cookieName = resolveCookieName();
 
-        String cookieName = Optional.ofNullable(jwtProperties.getCookieName())
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse("jwt");
+        ResponseCookie cookie = ResponseCookie.from(cookieName, token)
+                .httpOnly(true)
+                .secure(httpRequest.isSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(jwtProperties.getExpirySeconds())
+                .build();
 
-        Cookie cookie = new Cookie(cookieName, token);
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-
-        long expirySeconds = jwtProperties.getExpirySeconds();
-        if (expirySeconds > 0) {
-            cookie.setMaxAge((int) Math.min(expirySeconds, Integer.MAX_VALUE));
-        }
-
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(new LoginResponse(token));
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .build();
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletResponse response) {
-        String cookieName = Optional.ofNullable(jwtProperties.getCookieName())
+    public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
+        String cookieName = resolveCookieName();
+
+        ResponseCookie cookie = ResponseCookie.from(cookieName, "")
+                .httpOnly(true)
+                .secure(httpRequest.isSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .build();
+    }
+
+    private String resolveCookieName() {
+        return Optional.ofNullable(jwtProperties.getCookieName())
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .orElse("jwt");
-
-        Cookie cookie = new Cookie(cookieName, "");
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
-
-        return ResponseEntity.noContent().build();
     }
 }

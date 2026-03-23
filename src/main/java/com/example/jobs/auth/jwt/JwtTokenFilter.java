@@ -24,7 +24,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final JwtProperties jwtProperties;
     private final UserDetailsServiceImpl userDetailsService;
 
-    public JwtTokenFilter(JwtUtils jwtUtils, JwtProperties jwtProperties, UserDetailsServiceImpl userDetailsService) {
+    public JwtTokenFilter(
+            JwtUtils jwtUtils,
+            JwtProperties jwtProperties,
+            UserDetailsServiceImpl userDetailsService
+    ) {
         this.jwtUtils = jwtUtils;
         this.jwtProperties = jwtProperties;
         this.userDetailsService = userDetailsService;
@@ -41,10 +45,13 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
-        String token = resolveToken(request);
+        String token = resolveTokenFromCookie(request);
 
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
@@ -67,21 +74,19 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private String resolveToken(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            return header.substring(7).trim();
-        }
-
+    private String resolveTokenFromCookie(HttpServletRequest request) {
         String cookieName = jwtProperties.getCookieName();
         Cookie[] cookies = request.getCookies();
+
         if (cookies == null || cookieName == null || cookieName.isBlank()) {
             return null;
         }
 
-        for (Cookie c : cookies) {
-            if (cookieName.equals(c.getName()) && c.getValue() != null && !c.getValue().isBlank()) {
-                return c.getValue();
+        for (Cookie cookie : cookies) {
+            if (cookieName.equals(cookie.getName())
+                    && cookie.getValue() != null
+                    && !cookie.getValue().isBlank()) {
+                return cookie.getValue();
             }
         }
 
