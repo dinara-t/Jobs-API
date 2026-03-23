@@ -1,7 +1,5 @@
 package com.example.jobs.temps;
 
-import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -69,10 +67,8 @@ public class TempService {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        return tempRepository.findAll()
+        return tempRepository.findAllByIdInOrderByFirstNameAscLastNameAscIdAsc(visibleIds)
                 .stream()
-                .filter(t -> visibleIds.contains(t.getId()))
-                .sorted(Comparator.comparing(Temp::getFirstName).thenComparing(Temp::getLastName).thenComparing(Temp::getId))
                 .map(this::toDto)
                 .toList();
     }
@@ -80,11 +76,10 @@ public class TempService {
     @Transactional(readOnly = true)
     public TempWithJobsResponseDto getById(long id) {
         Temp current = currentTempService.getCurrentTempEntity();
-        Temp temp = tempRepository.findById(id).orElseThrow(() -> new NotFoundException("Temp not found"));
+        Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        if (!tempHierarchyService.isStrictDescendant(temp.getId(), current)) {
-            throw new NotFoundException("Temp not found");
-        }
+        Temp temp = tempRepository.findByIdAndIdIn(id, visibleIds)
+                .orElseThrow(() -> new NotFoundException("Temp not found"));
 
         return toWithJobsDto(temp);
     }
@@ -92,11 +87,10 @@ public class TempService {
     @Transactional
     public TempResponseDto update(long id, TempUpdateDto dto) {
         Temp current = currentTempService.getCurrentTempEntity();
-        Temp target = tempRepository.findById(id).orElseThrow(() -> new NotFoundException("Temp not found"));
+        Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        if (!tempHierarchyService.isStrictDescendant(target.getId(), current)) {
-            throw new NotFoundException("Temp not found");
-        }
+        Temp target = tempRepository.findByIdAndIdIn(id, visibleIds)
+                .orElseThrow(() -> new NotFoundException("Temp not found"));
 
         applyUpdate(target, dto, current);
         Temp saved = tempRepository.save(target);
@@ -125,11 +119,13 @@ public class TempService {
         Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
         ensureJobVisible(job, assignableIds);
 
-        return tempRepository.findAll()
+        return tempRepository.findAvailableTempsForRange(
+                        assignableIds,
+                        job.getStartDate(),
+                        job.getEndDate(),
+                        job.getId()
+                )
                 .stream()
-                .filter(t -> assignableIds.contains(t.getId()))
-                .filter(t -> isAvailableForRange(t.getId(), job.getStartDate(), job.getEndDate(), job.getId()))
-                .sorted(Comparator.comparing(Temp::getFirstName).thenComparing(Temp::getLastName).thenComparing(Temp::getId))
                 .map(this::toDto)
                 .toList();
     }
@@ -209,13 +205,8 @@ public class TempService {
         }
     }
 
-    private boolean isAvailableForRange(long tempId, LocalDate start, LocalDate end, long excludeJobId) {
-        long overlaps = jobRepository.countOverlappingJobsForTempExcludingJob(tempId, excludeJobId, start, end);
-        return overlaps == 0;
-    }
-
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
+        return email == null ? null : email.trim().toLowerCase();
     }
 
     private TempResponseDto toDto(Temp temp) {
@@ -230,13 +221,17 @@ public class TempService {
     }
 
     private TempWithJobsResponseDto toWithJobsDto(Temp temp) {
+        Long managerId = temp.getManager() != null ? temp.getManager().getId() : null;
+
         List<JobSummaryDto> jobs = temp.getJobs()
                 .stream()
-                .sorted(Comparator.comparing(Job::getStartDate).thenComparing(Job::getId))
-                .map(j -> new JobSummaryDto(j.getId(), j.getName(), j.getStartDate(), j.getEndDate()))
+                .map(job -> new JobSummaryDto(
+                        job.getId(),
+                        job.getName(),
+                        job.getStartDate(),
+                        job.getEndDate()
+                ))
                 .toList();
-
-        Long managerId = temp.getManager() != null ? temp.getManager().getId() : null;
 
         return new TempWithJobsResponseDto(
                 temp.getId(),

@@ -1,7 +1,6 @@
 package com.example.jobs.jobs;
 
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -73,8 +72,8 @@ public class JobService {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
-        Job job = jobRepository.findById(id).orElseThrow(() -> new NotFoundException("Job not found"));
-        ensureVisible(job, visibleTempIds);
+        Job job = jobRepository.findVisibleById(id, visibleTempIds)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
 
         LocalDate newStart = dto.getStartDate() != null ? dto.getStartDate() : job.getStartDate();
         LocalDate newEnd = dto.getEndDate() != null ? dto.getEndDate() : job.getEndDate();
@@ -111,11 +110,8 @@ public class JobService {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
-        return jobRepository.findAll()
+        return jobRepository.findVisibleJobs(visibleTempIds, assigned)
                 .stream()
-                .filter(job -> isVisible(job, visibleTempIds))
-                .filter(job -> assigned == null || assigned.equals(job.getTemp() != null))
-                .sorted(Comparator.comparing(Job::getStartDate).thenComparing(Job::getId))
                 .map(this::toDto)
                 .toList();
     }
@@ -125,19 +121,10 @@ public class JobService {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
-        Job job = jobRepository.findById(id).orElseThrow(() -> new NotFoundException("Job not found"));
-        ensureVisible(job, visibleTempIds);
+        Job job = jobRepository.findVisibleById(id, visibleTempIds)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+
         return toDto(job);
-    }
-
-    private boolean isVisible(Job job, Set<Long> visibleTempIds) {
-        return job.getTemp() == null || visibleTempIds.contains(job.getTemp().getId());
-    }
-
-    private void ensureVisible(Job job, Set<Long> visibleTempIds) {
-        if (!isVisible(job, visibleTempIds)) {
-            throw new NotFoundException("Job not found");
-        }
     }
 
     private void ensureTempAvailableForRange(long tempId, LocalDate startDate, LocalDate endDate, long excludeJobId) {
