@@ -1146,6 +1146,132 @@ public class UnauthorizedException extends HTTPException {
     public UnauthorizedException(String message) {
         super(HttpStatus.UNAUTHORIZED, message);
     }
+}\n===== ./src/main/java/com/example/jobs/config/factory/BaseFactory.java =====\n
+package com.example.jobs.config.factory;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.github.javafaker.Faker;
+
+public abstract class BaseFactory {
+
+    private final Faker faker = new Faker();
+    private static final AtomicInteger counter = new AtomicInteger();
+
+    protected Faker faker() {
+        return faker;
+    }
+
+    protected int incrementAndGet() {
+        return counter.incrementAndGet();
+    }
+
+    public abstract boolean repoEmpty();
+}\n===== ./src/main/java/com/example/jobs/config/factory/temp/TempFactory.java =====\n
+package com.example.jobs.config.factory.temp;
+
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import com.example.jobs.config.factory.BaseFactory;
+import com.example.jobs.temps.TempRepository;
+import com.example.jobs.temps.entities.Temp;
+
+@Component
+@Profile("dev")
+public class TempFactory extends BaseFactory {
+
+    private final TempRepository tempRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public TempFactory(TempRepository tempRepository, PasswordEncoder passwordEncoder) {
+        this.tempRepository = tempRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public boolean repoEmpty() {
+        return tempRepository.count() == 0;
+    }
+
+    public Temp create(TempFactoryOptions options) {
+        Temp temp = new Temp();
+
+        temp.setFirstName(options.firstName != null ? options.firstName : faker().name().firstName());
+        temp.setLastName(options.lastName != null ? options.lastName : faker().name().lastName());
+        temp.setEmail(options.email != null ? options.email : generateUniqueEmail());
+        temp.setPasswordHash(passwordEncoder.encode(
+                options.rawPassword != null ? options.rawPassword : "password12345"
+        ));
+        temp.setManager(options.manager);
+
+        return temp;
+    }
+
+    public Temp create() {
+        return create(new TempFactoryOptions());
+    }
+
+    public Temp createAndPersist(TempFactoryOptions options) {
+        return tempRepository.save(create(options));
+    }
+
+    public Temp createAndPersist() {
+        return createAndPersist(new TempFactoryOptions());
+    }
+
+    private String generateUniqueEmail() {
+        String localPart = faker().internet().emailAddress().split("@")[0]
+                .replaceAll("[^a-zA-Z0-9]", "")
+                .toLowerCase();
+
+        if (localPart.isBlank()) {
+            localPart = "temp";
+        }
+
+        return localPart + "_" + incrementAndGet() + "@example.com";
+    }
+}\n===== ./src/main/java/com/example/jobs/config/factory/temp/TempFactoryOptions.java =====\n
+package com.example.jobs.config.factory.temp;
+
+import com.example.jobs.temps.entities.Temp;
+
+public class TempFactoryOptions {
+
+    public String firstName;
+    public String lastName;
+    public String email;
+    public String rawPassword;
+    public Temp manager;
+
+    public TempFactoryOptions() {
+    }
+
+    public TempFactoryOptions firstName(String firstName) {
+        this.firstName = firstName;
+        return this;
+    }
+
+    public TempFactoryOptions lastName(String lastName) {
+        this.lastName = lastName;
+        return this;
+    }
+
+    public TempFactoryOptions email(String email) {
+        this.email = email;
+        return this;
+    }
+
+    public TempFactoryOptions rawPassword(String rawPassword) {
+        this.rawPassword = rawPassword;
+        return this;
+    }
+
+    public TempFactoryOptions manager(Temp manager) {
+        this.manager = manager;
+        return this;
+    }
 }\n===== ./src/main/java/com/example/jobs/config/SecurityBeansConfig.java =====\n
 package com.example.jobs.config;
 
@@ -1165,29 +1291,43 @@ public class SecurityBeansConfig {
 package com.example.jobs.config.seeder;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import com.example.jobs.config.factory.temp.TempFactory;
+import com.example.jobs.config.factory.temp.TempFactoryOptions;
 import com.example.jobs.jobs.JobRepository;
 import com.example.jobs.jobs.entities.Job;
 import com.example.jobs.temps.TempRepository;
 import com.example.jobs.temps.entities.Temp;
+import com.github.javafaker.Faker;
 
 @Component
 @Profile("dev")
 public class DevDataSeeder implements CommandLineRunner {
 
+    private static final int MANAGER_COUNT = 20;
+    private static final int EMPLOYEE_COUNT = 80;
+    private static final int JOB_COUNT = 100;
+
     private final TempRepository tempRepository;
     private final JobRepository jobRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final TempFactory tempFactory;
+    private final Faker faker = new Faker();
 
-    public DevDataSeeder(TempRepository tempRepository, JobRepository jobRepository, PasswordEncoder passwordEncoder) {
+    public DevDataSeeder(
+            TempRepository tempRepository,
+            JobRepository jobRepository,
+            TempFactory tempFactory
+    ) {
         this.tempRepository = tempRepository;
         this.jobRepository = jobRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.tempFactory = tempFactory;
     }
 
     @Override
@@ -1196,63 +1336,58 @@ public class DevDataSeeder implements CommandLineRunner {
             return;
         }
 
-        Temp admin = new Temp();
-        admin.setFirstName("Admin");
-        admin.setLastName("User");
-        admin.setEmail("admin@example.com");
-        admin.setPasswordHash(passwordEncoder.encode("admin12345"));
-        admin = tempRepository.save(admin);
+        Temp admin = tempFactory.createAndPersist(
+                new TempFactoryOptions()
+                        .firstName("Admin")
+                        .lastName("User")
+                        .email("admin@example.com")
+                        .rawPassword("admin12345")
+        );
 
-        Temp alex = new Temp();
-        alex.setFirstName("Alex");
-        alex.setLastName("Taylor");
-        alex.setEmail("alex@example.com");
-        alex.setPasswordHash(passwordEncoder.encode("alex12345"));
-        alex.setManager(admin);
-        alex = tempRepository.save(alex);
+        List<Temp> managers = new ArrayList<>();
+        for (int i = 0; i < MANAGER_COUNT; i++) {
+            managers.add(
+                    tempFactory.createAndPersist(
+                            new TempFactoryOptions().manager(admin)
+                    )
+            );
+        }
 
-        Temp sam = new Temp();
-        sam.setFirstName("Sam");
-        sam.setLastName("Nguyen");
-        sam.setEmail("sam@example.com");
-        sam.setPasswordHash(passwordEncoder.encode("sam12345"));
-        sam.setManager(admin);
-        sam = tempRepository.save(sam);
+        List<Temp> assignableTemps = new ArrayList<>();
+        assignableTemps.addAll(managers);
 
-        Temp jamie = new Temp();
-        jamie.setFirstName("Jamie");
-        jamie.setLastName("Lopez");
-        jamie.setEmail("jamie@example.com");
-        jamie.setPasswordHash(passwordEncoder.encode("jamie12345"));
-        jamie.setManager(alex);
-        jamie = tempRepository.save(jamie);
+        for (int i = 0; i < EMPLOYEE_COUNT; i++) {
+            Temp randomManager = managers.get(ThreadLocalRandom.current().nextInt(managers.size()));
 
-        Job j1 = new Job();
-        j1.setName("Warehouse shift");
-        j1.setStartDate(LocalDate.now().plusDays(1));
-        j1.setEndDate(LocalDate.now().plusDays(3));
-        j1.setTemp(alex);
-        jobRepository.save(j1);
+            Temp temp = tempFactory.createAndPersist(
+                    new TempFactoryOptions().manager(randomManager)
+            );
 
-        Job j2 = new Job();
-        j2.setName("Site labouring");
-        j2.setStartDate(LocalDate.now().plusDays(4));
-        j2.setEndDate(LocalDate.now().plusDays(6));
-        jobRepository.save(j2);
+            assignableTemps.add(temp);
+        }
 
-        Job j3 = new Job();
-        j3.setName("Forklift cover");
-        j3.setStartDate(LocalDate.now().plusDays(2));
-        j3.setEndDate(LocalDate.now().plusDays(2));
-        j3.setTemp(sam);
-        jobRepository.save(j3);
+        for (int i = 0; i < JOB_COUNT; i++) {
+            Job job = new Job();
+            job.setName(randomJobName());
 
-        Job j4 = new Job();
-        j4.setName("Packing support");
-        j4.setStartDate(LocalDate.now().plusDays(7));
-        j4.setEndDate(LocalDate.now().plusDays(8));
-        j4.setTemp(jamie);
-        jobRepository.save(j4);
+            LocalDate start = LocalDate.now().plusDays(ThreadLocalRandom.current().nextInt(1, 31));
+            LocalDate end = start.plusDays(ThreadLocalRandom.current().nextInt(0, 6));
+
+            job.setStartDate(start);
+            job.setEndDate(end);
+
+            boolean assignJob = ThreadLocalRandom.current().nextInt(100) < 75;
+            if (assignJob && !assignableTemps.isEmpty()) {
+                Temp randomTemp = assignableTemps.get(ThreadLocalRandom.current().nextInt(assignableTemps.size()));
+                job.setTemp(randomTemp);
+            }
+
+            jobRepository.save(job);
+        }
+    }
+
+    private String randomJobName() {
+        return faker.job().title();
     }
 }\n===== ./src/main/java/com/example/jobs/config/WebMvcConfig.java =====\n
 package com.example.jobs.config;
