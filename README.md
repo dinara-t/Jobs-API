@@ -6,14 +6,15 @@ Built with Spring Boot, Spring Security, JWT authentication and MySQL.
 
 ## Features
 
-- JWT authentication
+- JWT authentication (httpOnly cookie-based)
 - Temp hierarchy management
 - Job creation and assignment
-- Prevent overlapping job bookings
 - Profile management
 - Hierarchy-based visibility rules
-- Swagger API documentation
+- Pagination support
+- Sorting (jobs: date/name, temps: name/id/job count)
 - Validation and structured error handling
+- Dev data seeding
 
 ## Architecture
 
@@ -37,7 +38,7 @@ flowchart LR
 
 The backend exposes REST endpoints consumed by the React frontend.  
 Authentication is handled using JWT tokens through Spring Security.  
-Business rules such as hierarchy visibility and overlapping booking prevention are enforced in the service layer.
+Business logic such as hierarchy visibility and assignment rules is enforced in the service layer.
 
 ## Tech Stack
 
@@ -47,21 +48,22 @@ Spring Security
 Spring Data JPA  
 JWT Authentication  
 MySQL  
-Swagger / OpenAPI  
-Maven
+Maven  
 
 ## Project Structure
 
     src/main/java/com/example/jobs
-    ├── auth
-    ├── common
+    ├── controller
+    ├── service
+    ├── repository
+    ├── dto
+    ├── entity
+    ├── security
     ├── config
-    ├── jobs
-    └── temps
+    └── exception
 
     src/main/resources
     ├── application.properties
-    └── application-test.properties
 
 ## Database ER Diagram
 
@@ -98,17 +100,18 @@ sequenceDiagram
     participant SEC as Spring Security
     participant DB as Database
 
-    U->>FE: Enter email and password
+    U->>FE: Enter credentials
     FE->>API: POST /auth/login
-    API->>SEC: Authenticate request
-    SEC->>DB: Load user by email
-    DB-->>SEC: User details
-    SEC-->>API: Authentication success
-    API-->>FE: Return JWT token
-    FE->>API: Send authenticated request with JWT
-    API->>SEC: Validate token
-    SEC-->>API: Token valid
-    API-->>FE: Return protected data
+    API->>SEC: Authenticate
+    SEC->>DB: Load user
+    DB-->>SEC: User data
+    SEC-->>API: Success
+    API-->>FE: JWT (cookie)
+
+    FE->>API: Authenticated request
+    API->>SEC: Validate JWT
+    SEC-->>API: Valid
+    API-->>FE: Protected response
 ```
 
 ## API Endpoints
@@ -118,78 +121,65 @@ sequenceDiagram
 - `POST /auth/login`
 - `POST /auth/logout`
 
-### Profile
-
-- `GET /profile`
-- `PATCH /profile`
-
 ### Temps
 
-- `POST /temps`
 - `GET /temps`
 - `GET /temps/{id}`
+- `POST /temps`
 - `PATCH /temps/{id}`
-- `GET /temps?jobId={jobId}`
 
 ### Jobs
 
-- `POST /jobs`
 - `GET /jobs`
 - `GET /jobs/{id}`
+- `POST /jobs`
 - `PATCH /jobs/{id}`
-- `GET /jobs?assigned=true`
-- `GET /jobs?assigned=false`
+
+### Assignment
+
+- `POST /jobs/{id}/assign/{tempId}`
+- `POST /jobs/{id}/unassign`
 
 ## Business Rules
 
 - A job can have only one temp
 - A temp can have multiple jobs
-- Jobs cannot overlap for the same temp
 - Users can only view temps within their reporting hierarchy
-- Users can only view jobs that are unassigned, assigned to themselves, or assigned to their reports
+- Users can only view jobs within allowed scope
+
+## Pagination & Sorting
+
+Supported via query params:
+
+- `page`
+- `size`
+- `sort`
+
+Default:
+- Jobs → date ASC
+- Temps → name ASC
 
 ## Running the API
 
-Run the application with:
+```
+mvn spring-boot:run
+```
 
-    mvn spring-boot:run
+Base URL:
 
-API base URL:
-
-    http://localhost:8080
-
-Swagger documentation:
-
-    http://localhost:8080/swagger-ui/index.html
+```
+http://localhost:8080
+```
 
 ## Environment Variables
 
-Example `.env`:
+```
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=jobs_db
+DB_USER=root
+DB_PASSWORD=password
 
-    DB_HOST=localhost
-    DB_PORT=3306
-    DB_NAME=jobs_db
-    DB_USER=root
-    DB_PASSWORD=password
-
-    JWT_SECRET=VerySecureSecretKey
-    JWT_TOKEN_EXPIRY=86400000
-
-    CORS_ALLOWED_ORIGINS=http://localhost:5173
-    SERVER_PORT=8080
-
-## Example Seed Users
-
-- `admin@example.com / admin12345`
-- `allan@example.com / allan12345`
-- `sam@example.com / sam12345`
-- `jamie@example.com / jamie12345`
-
-## Future Improvements
-
-- Add e2e tests
-- Add pagination and filtering
-- Add temp availability checking before assignment
-- Introduce job status tracking
-- Replace hardcoded seed data with factory-based data generation using Faker
-- Deploy backend to AWS EC2
+JWT_SECRET=VerySecureSecretKey
+JWT_TOKEN_EXPIRY=86400000
+```
