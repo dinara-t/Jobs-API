@@ -67,21 +67,11 @@ public class TempService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<TempResponseDto> listAll(int page, int size) {
+    public PageResponse<TempResponseDto> listAll(String sortBy, String sortDir, int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        PageRequest pageable = PageRequest.of(
-                normalizePage(page),
-                normalizeSize(size),
-                Sort.by(
-                        Sort.Order.asc("firstName"),
-                        Sort.Order.asc("lastName"),
-                        Sort.Order.asc("id")
-                )
-        );
-
-        Page<TempResponseDto> result = tempRepository.findVisibleTemps(visibleIds, pageable)
+        Page<TempResponseDto> result = findTempsPage(visibleIds, sortBy, sortDir, page, size)
                 .map(this::toDto);
 
         return PageResponse.from(result);
@@ -126,33 +116,118 @@ public class TempService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<TempResponseDto> listAvailableForJob(long jobId, int page, int size) {
+    public PageResponse<TempResponseDto> listAvailableForJob(long jobId, String sortBy, String sortDir, int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> assignableIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
         Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
         ensureJobVisible(job, assignableIds);
 
-        PageRequest pageable = PageRequest.of(
-                normalizePage(page),
-                normalizeSize(size),
-                Sort.by(
-                        Sort.Order.asc("firstName"),
-                        Sort.Order.asc("lastName"),
-                        Sort.Order.asc("id")
-                )
-        );
-
-        Page<TempResponseDto> result = tempRepository.findAvailableTempsForRange(
+        Page<TempResponseDto> result = findAvailableTempsPage(
                         assignableIds,
                         job.getStartDate(),
                         job.getEndDate(),
                         job.getId(),
-                        pageable
+                        sortBy,
+                        sortDir,
+                        page,
+                        size
                 )
                 .map(this::toDto);
 
         return PageResponse.from(result);
+    }
+
+    private Page<Temp> findTempsPage(Set<Long> visibleIds, String sortBy, String sortDir, int page, int size) {
+        String normalizedSortBy = normalizeSortBy(sortBy);
+        Sort.Direction direction = parseDirection(sortDir);
+        PageRequest pageable = PageRequest.of(normalizePage(page), normalizeSize(size), buildSort(normalizedSortBy, direction));
+
+        if ("jobcount".equals(normalizedSortBy)) {
+            if (direction == Sort.Direction.DESC) {
+                return tempRepository.findVisibleTempsOrderByJobCountDesc(visibleIds, pageable);
+            }
+            return tempRepository.findVisibleTempsOrderByJobCountAsc(visibleIds, pageable);
+        }
+
+        return tempRepository.findVisibleTemps(visibleIds, pageable);
+    }
+
+    private Page<Temp> findAvailableTempsPage(
+            Set<Long> assignableIds,
+            java.time.LocalDate startDate,
+            java.time.LocalDate endDate,
+            Long excludeJobId,
+            String sortBy,
+            String sortDir,
+            int page,
+            int size
+    ) {
+        String normalizedSortBy = normalizeSortBy(sortBy);
+        Sort.Direction direction = parseDirection(sortDir);
+        PageRequest pageable = PageRequest.of(normalizePage(page), normalizeSize(size), buildSort(normalizedSortBy, direction));
+
+        if ("jobcount".equals(normalizedSortBy)) {
+            if (direction == Sort.Direction.DESC) {
+                return tempRepository.findAvailableTempsForRangeOrderByJobCountDesc(
+                        assignableIds,
+                        startDate,
+                        endDate,
+                        excludeJobId,
+                        pageable
+                );
+            }
+            return tempRepository.findAvailableTempsForRangeOrderByJobCountAsc(
+                    assignableIds,
+                    startDate,
+                    endDate,
+                    excludeJobId,
+                    pageable
+            );
+        }
+
+        return tempRepository.findAvailableTempsForRange(
+                assignableIds,
+                startDate,
+                endDate,
+                excludeJobId,
+                pageable
+        );
+    }
+
+    private Sort buildSort(String sortBy, Sort.Direction direction) {
+        if ("id".equals(sortBy)) {
+            return Sort.by(
+                    new Sort.Order(direction, "id")
+            );
+        }
+
+        return Sort.by(
+                new Sort.Order(direction, "firstName"),
+                new Sort.Order(direction, "lastName"),
+                new Sort.Order(direction, "id")
+        );
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "name";
+        }
+
+        String normalized = sortBy.trim().toLowerCase();
+        if ("id".equals(normalized) || "name".equals(normalized) || "jobcount".equals(normalized)) {
+            return normalized;
+        }
+
+        throw new BadRequestException("Invalid temps sortBy value");
+    }
+
+    private Sort.Direction parseDirection(String sortDir) {
+        try {
+            return Sort.Direction.fromString(sortDir == null || sortDir.isBlank() ? "asc" : sortDir.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Invalid sort direction");
+        }
     }
 
     private void applyUpdate(Temp target, TempUpdateDto dto, Temp actingUser) {
@@ -247,12 +322,15 @@ public class TempService {
 
     private TempResponseDto toDto(Temp temp) {
         Long managerId = temp.getManager() != null ? temp.getManager().getId() : null;
+        long jobCount = temp.getJobs() == null ? 0 : temp.getJobs().size();
+
         return new TempResponseDto(
                 temp.getId(),
                 temp.getFirstName(),
                 temp.getLastName(),
                 temp.getEmail(),
-                managerId
+                managerId,
+                jobCount
         );
     }
 

@@ -109,14 +109,14 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<JobResponseDto> list(Boolean assigned, int page, int size) {
+    public PageResponse<JobResponseDto> list(Boolean assigned, String sortBy, String sortDir, int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
         PageRequest pageable = PageRequest.of(
                 normalizePage(page),
                 normalizeSize(size),
-                Sort.by(Sort.Order.asc("startDate"), Sort.Order.asc("id"))
+                buildSort(sortBy, sortDir)
         );
 
         Page<JobResponseDto> result = jobRepository.findVisibleJobs(visibleTempIds, assigned, pageable)
@@ -134,6 +134,44 @@ public class JobService {
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
         return toDto(job);
+    }
+
+    private Sort buildSort(String sortBy, String sortDir) {
+        Sort.Direction direction = parseDirection(sortDir);
+        String normalizedSortBy = normalizeSortBy(sortBy);
+
+        if ("name".equals(normalizedSortBy)) {
+            return Sort.by(
+                    new Sort.Order(direction, "name"),
+                    new Sort.Order(direction, "id")
+            );
+        }
+
+        return Sort.by(
+                new Sort.Order(direction, "startDate"),
+                new Sort.Order(direction, "id")
+        );
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "date";
+        }
+
+        String normalized = sortBy.trim().toLowerCase();
+        if ("date".equals(normalized) || "name".equals(normalized)) {
+            return normalized;
+        }
+
+        throw new BadRequestException("Invalid jobs sortBy value");
+    }
+
+    private Sort.Direction parseDirection(String sortDir) {
+        try {
+            return Sort.Direction.fromString(sortDir == null || sortDir.isBlank() ? "asc" : sortDir.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Invalid sort direction");
+        }
     }
 
     private void ensureTempAvailableForRange(long tempId, LocalDate startDate, LocalDate endDate, long excludeJobId) {

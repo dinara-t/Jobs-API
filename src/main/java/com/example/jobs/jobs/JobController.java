@@ -39,10 +39,12 @@ public class JobController {
     @GetMapping
     public PageResponse<JobResponseDto> list(
             @RequestParam(required = false) Boolean assigned,
+            @RequestParam(defaultValue = "date") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return jobService.list(assigned, page, size);
+        return jobService.list(assigned, sortBy, sortDir, page, size);
     }
 
     @GetMapping("/{id}")

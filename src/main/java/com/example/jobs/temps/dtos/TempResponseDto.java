@@ -7,16 +7,18 @@ public class TempResponseDto {
     private String lastName;
     private String email;
     private Long managerId;
+    private long jobCount;
 
     public TempResponseDto() {
     }
 
-    public TempResponseDto(Long id, String firstName, String lastName, String email, Long managerId) {
+    public TempResponseDto(Long id, String firstName, String lastName, String email, Long managerId, long jobCount) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.managerId = managerId;
+        this.jobCount = jobCount;
     }
 
     public Long getId() {
@@ -39,6 +41,10 @@ public class TempResponseDto {
         return managerId;
     }
 
+    public long getJobCount() {
+        return jobCount;
+    }
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -57,5 +63,9 @@ public class TempResponseDto {
 
     public void setManagerId(Long managerId) {
         this.managerId = managerId;
+    }
+
+    public void setJobCount(long jobCount) {
+        this.jobCount = jobCount;
     }
 }

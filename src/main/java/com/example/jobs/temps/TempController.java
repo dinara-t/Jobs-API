@@ -35,13 +35,15 @@ public class TempController {
     @GetMapping("/temps")
     public PageResponse<TempResponseDto> list(
             @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         if (jobId != null) {
-            return tempService.listAvailableForJob(jobId, page, size);
+            return tempService.listAvailableForJob(jobId, sortBy, sortDir, page, size);
         }
-        return tempService.listAll(page, size);
+        return tempService.listAll(sortBy, sortDir, page, size);
     }
 
     @GetMapping("/temps/{id}")

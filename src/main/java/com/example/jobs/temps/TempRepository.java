@@ -39,6 +39,40 @@ public interface TempRepository extends JpaRepository<Temp, Long> {
         value = """
             select t
             from Temp t
+            left join t.jobs j
+            where t.id in :ids
+            group by t
+            order by count(j) asc, t.firstName asc, t.lastName asc, t.id asc
+            """,
+        countQuery = """
+            select count(t)
+            from Temp t
+            where t.id in :ids
+            """
+    )
+    Page<Temp> findVisibleTempsOrderByJobCountAsc(Collection<Long> ids, Pageable pageable);
+
+    @Query(
+        value = """
+            select t
+            from Temp t
+            left join t.jobs j
+            where t.id in :ids
+            group by t
+            order by count(j) desc, t.firstName asc, t.lastName asc, t.id asc
+            """,
+        countQuery = """
+            select count(t)
+            from Temp t
+            where t.id in :ids
+            """
+    )
+    Page<Temp> findVisibleTempsOrderByJobCountDesc(Collection<Long> ids, Pageable pageable);
+
+    @Query(
+        value = """
+            select t
+            from Temp t
             where t.id in :tempIds
               and not exists (
                   select 1
@@ -64,6 +98,84 @@ public interface TempRepository extends JpaRepository<Temp, Long> {
             """
     )
     Page<Temp> findAvailableTempsForRange(
+            Collection<Long> tempIds,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long excludeJobId,
+            Pageable pageable
+    );
+
+    @Query(
+        value = """
+            select t
+            from Temp t
+            left join t.jobs j
+            where t.id in :tempIds
+              and not exists (
+                  select 1
+                  from Job blocked
+                  where blocked.temp = t
+                    and blocked.id <> :excludeJobId
+                    and blocked.startDate <= :endDate
+                    and blocked.endDate >= :startDate
+              )
+            group by t
+            order by count(j) asc, t.firstName asc, t.lastName asc, t.id asc
+            """,
+        countQuery = """
+            select count(t)
+            from Temp t
+            where t.id in :tempIds
+              and not exists (
+                  select 1
+                  from Job blocked
+                  where blocked.temp = t
+                    and blocked.id <> :excludeJobId
+                    and blocked.startDate <= :endDate
+                    and blocked.endDate >= :startDate
+              )
+            """
+    )
+    Page<Temp> findAvailableTempsForRangeOrderByJobCountAsc(
+            Collection<Long> tempIds,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long excludeJobId,
+            Pageable pageable
+    );
+
+    @Query(
+        value = """
+            select t
+            from Temp t
+            left join t.jobs j
+            where t.id in :tempIds
+              and not exists (
+                  select 1
+                  from Job blocked
+                  where blocked.temp = t
+                    and blocked.id <> :excludeJobId
+                    and blocked.startDate <= :endDate
+                    and blocked.endDate >= :startDate
+              )
+            group by t
+            order by count(j) desc, t.firstName asc, t.lastName asc, t.id asc
+            """,
+        countQuery = """
+            select count(t)
+            from Temp t
+            where t.id in :tempIds
+              and not exists (
+                  select 1
+                  from Job blocked
+                  where blocked.temp = t
+                    and blocked.id <> :excludeJobId
+                    and blocked.startDate <= :endDate
+                    and blocked.endDate >= :startDate
+              )
+            """
+    )
+    Page<Temp> findAvailableTempsForRangeOrderByJobCountDesc(
             Collection<Long> tempIds,
             LocalDate startDate,
             LocalDate endDate,
