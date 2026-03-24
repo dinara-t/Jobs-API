@@ -1,13 +1,16 @@
 package com.example.jobs.jobs;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.jobs.auth.CurrentTempService;
+import com.example.jobs.common.dto.PageResponse;
 import com.example.jobs.common.exception.BadRequestException;
 import com.example.jobs.common.exception.NotFoundException;
 import com.example.jobs.jobs.dtos.JobCreateDto;
@@ -106,14 +109,20 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
-    public List<JobResponseDto> list(Boolean assigned) {
+    public PageResponse<JobResponseDto> list(Boolean assigned, int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
-        return jobRepository.findVisibleJobs(visibleTempIds, assigned)
-                .stream()
-                .map(this::toDto)
-                .toList();
+        PageRequest pageable = PageRequest.of(
+                normalizePage(page),
+                normalizeSize(size),
+                Sort.by(Sort.Order.asc("startDate"), Sort.Order.asc("id"))
+        );
+
+        Page<JobResponseDto> result = jobRepository.findVisibleJobs(visibleTempIds, assigned, pageable)
+                .map(this::toDto);
+
+        return PageResponse.from(result);
     }
 
     @Transactional(readOnly = true)
@@ -145,6 +154,17 @@ public class JobService {
         if (endDate.isBefore(startDate)) {
             throw new BadRequestException("End date must be on or after start date");
         }
+    }
+
+    private int normalizePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int normalizeSize(int size) {
+        if (size < 1) {
+            return 10;
+        }
+        return Math.min(size, 100);
     }
 
     private JobResponseDto toDto(Job job) {

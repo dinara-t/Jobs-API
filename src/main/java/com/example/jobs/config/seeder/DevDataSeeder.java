@@ -42,31 +42,47 @@ public class DevDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (tempRepository.count() > 0 || jobRepository.count() > 0) {
-            return;
-        }
-
-        Temp admin = tempFactory.createAndPersist(
-                new TempFactoryOptions()
-                        .firstName("Admin")
-                        .lastName("User")
-                        .email("admin@example.com")
-                        .rawPassword("admin12345")
-        );
+        Temp admin = tempRepository.findByEmail("admin@example.com")
+                .orElseGet(() -> tempFactory.createAndPersist(
+                        new TempFactoryOptions()
+                                .firstName("Admin")
+                                .lastName("User")
+                                .email("admin@example.com")
+                                .rawPassword("admin12345")
+                ));
 
         List<Temp> managers = new ArrayList<>();
-        for (int i = 0; i < MANAGER_COUNT; i++) {
-            managers.add(
-                    tempFactory.createAndPersist(
-                            new TempFactoryOptions().manager(admin)
-                    )
+        List<Temp> existingTemps = tempRepository.findAll();
+
+        for (Temp temp : existingTemps) {
+            Temp manager = temp.getManager();
+            if (manager != null && manager.getId() != null && manager.getId().equals(admin.getId())) {
+                managers.add(temp);
+            }
+        }
+
+        while (managers.size() < MANAGER_COUNT) {
+            Temp manager = tempFactory.createAndPersist(
+                    new TempFactoryOptions().manager(admin)
             );
+            managers.add(manager);
         }
 
         List<Temp> assignableTemps = new ArrayList<>();
         assignableTemps.addAll(managers);
 
-        for (int i = 0; i < EMPLOYEE_COUNT; i++) {
+        int employeeCount = 0;
+        existingTemps = tempRepository.findAll();
+
+        for (Temp temp : existingTemps) {
+            Temp manager = temp.getManager();
+            if (manager != null && manager.getId() != null && !manager.getId().equals(admin.getId())) {
+                employeeCount++;
+                assignableTemps.add(temp);
+            }
+        }
+
+        while (employeeCount < EMPLOYEE_COUNT) {
             Temp randomManager = managers.get(ThreadLocalRandom.current().nextInt(managers.size()));
 
             Temp temp = tempFactory.createAndPersist(
@@ -74,9 +90,12 @@ public class DevDataSeeder implements CommandLineRunner {
             );
 
             assignableTemps.add(temp);
+            employeeCount++;
         }
 
-        for (int i = 0; i < JOB_COUNT; i++) {
+        long existingJobs = jobRepository.count();
+
+        while (existingJobs < JOB_COUNT) {
             Job job = new Job();
             job.setName(randomJobName());
 
@@ -93,6 +112,7 @@ public class DevDataSeeder implements CommandLineRunner {
             }
 
             jobRepository.save(job);
+            existingJobs++;
         }
     }
 

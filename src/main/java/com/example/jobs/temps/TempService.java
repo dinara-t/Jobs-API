@@ -3,11 +3,15 @@ package com.example.jobs.temps;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.jobs.auth.CurrentTempService;
+import com.example.jobs.common.dto.PageResponse;
 import com.example.jobs.common.exception.BadRequestException;
 import com.example.jobs.common.exception.NotFoundException;
 import com.example.jobs.jobs.JobRepository;
@@ -63,14 +67,24 @@ public class TempService {
     }
 
     @Transactional(readOnly = true)
-    public List<TempResponseDto> listAll() {
+    public PageResponse<TempResponseDto> listAll(int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        return tempRepository.findAllByIdInOrderByFirstNameAscLastNameAscIdAsc(visibleIds)
-                .stream()
-                .map(this::toDto)
-                .toList();
+        PageRequest pageable = PageRequest.of(
+                normalizePage(page),
+                normalizeSize(size),
+                Sort.by(
+                        Sort.Order.asc("firstName"),
+                        Sort.Order.asc("lastName"),
+                        Sort.Order.asc("id")
+                )
+        );
+
+        Page<TempResponseDto> result = tempRepository.findVisibleTemps(visibleIds, pageable)
+                .map(this::toDto);
+
+        return PageResponse.from(result);
     }
 
     @Transactional(readOnly = true)
@@ -112,22 +126,33 @@ public class TempService {
     }
 
     @Transactional(readOnly = true)
-    public List<TempResponseDto> listAvailableForJob(long jobId) {
+    public PageResponse<TempResponseDto> listAvailableForJob(long jobId, int page, int size) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> assignableIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
         Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
         ensureJobVisible(job, assignableIds);
 
-        return tempRepository.findAvailableTempsForRange(
+        PageRequest pageable = PageRequest.of(
+                normalizePage(page),
+                normalizeSize(size),
+                Sort.by(
+                        Sort.Order.asc("firstName"),
+                        Sort.Order.asc("lastName"),
+                        Sort.Order.asc("id")
+                )
+        );
+
+        Page<TempResponseDto> result = tempRepository.findAvailableTempsForRange(
                         assignableIds,
                         job.getStartDate(),
                         job.getEndDate(),
-                        job.getId()
+                        job.getId(),
+                        pageable
                 )
-                .stream()
-                .map(this::toDto)
-                .toList();
+                .map(this::toDto);
+
+        return PageResponse.from(result);
     }
 
     private void applyUpdate(Temp target, TempUpdateDto dto, Temp actingUser) {
@@ -203,6 +228,17 @@ public class TempService {
         if (!visibleTempIds.contains(job.getTemp().getId())) {
             throw new NotFoundException("Job not found");
         }
+    }
+
+    private int normalizePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int normalizeSize(int size) {
+        if (size < 1) {
+            return 10;
+        }
+        return Math.min(size, 100);
     }
 
     private String normalizeEmail(String email) {

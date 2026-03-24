@@ -1,7 +1,5 @@
 package com.example.jobs.jobs;
 
-import java.util.List;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.jobs.common.dto.PageResponse;
 import com.example.jobs.jobs.dtos.JobCreateDto;
 import com.example.jobs.jobs.dtos.JobResponseDto;
 import com.example.jobs.jobs.dtos.JobUpdateDto;
@@ -38,8 +37,12 @@ public class JobController {
     }
 
     @GetMapping
-    public List<JobResponseDto> list(@RequestParam(required = false) Boolean assigned) {
-        return jobService.list(assigned);
+    public PageResponse<JobResponseDto> list(
+            @RequestParam(required = false) Boolean assigned,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return jobService.list(assigned, page, size);
     }
 
     @GetMapping("/{id}")

@@ -1,7 +1,5 @@
 package com.example.jobs.temps;
 
-import java.util.List;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.jobs.common.dto.PageResponse;
 import com.example.jobs.temps.dtos.TempCreateDto;
 import com.example.jobs.temps.dtos.TempResponseDto;
 import com.example.jobs.temps.dtos.TempUpdateDto;
@@ -34,11 +33,15 @@ public class TempController {
     }
 
     @GetMapping("/temps")
-    public List<TempResponseDto> list(@RequestParam(required = false) Long jobId) {
+    public PageResponse<TempResponseDto> list(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
         if (jobId != null) {
-            return tempService.listAvailableForJob(jobId);
+            return tempService.listAvailableForJob(jobId, page, size);
         }
-        return tempService.listAll();
+        return tempService.listAll(page, size);
     }
 
     @GetMapping("/temps/{id}")
