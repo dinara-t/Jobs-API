@@ -18,7 +18,7 @@ public class AuthE2eTest extends E2eTestSuite {
 
     @Test
     void login_withValidCredentials_returnsNoContentAndJwtCookie() {
-        spec()
+        csrfSpec()
                 .build()
                 .body("""
                         {
@@ -36,7 +36,7 @@ public class AuthE2eTest extends E2eTestSuite {
 
     @Test
     void login_withInvalidCredentials_returnsUnauthorized() {
-        spec()
+        csrfSpec()
                 .build()
                 .body("""
                         {

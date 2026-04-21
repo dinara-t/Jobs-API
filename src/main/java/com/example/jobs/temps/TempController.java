@@ -18,7 +18,7 @@ import com.example.jobs.temps.dtos.TempWithJobsResponseDto;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping
+@RequestMapping("/temps")
 public class TempController {
 
     private final TempService tempService;
@@ -27,12 +27,22 @@ public class TempController {
         this.tempService = tempService;
     }
 
-    @PostMapping("/temps")
+    @PostMapping
     public TempResponseDto create(@Valid @RequestBody TempCreateDto dto) {
         return tempService.create(dto);
     }
 
-    @GetMapping("/temps")
+    @GetMapping("/me")
+    public TempResponseDto getProfile() {
+        return tempService.getProfile();
+    }
+
+    @PatchMapping("/me")
+    public TempResponseDto updateProfile(@Valid @RequestBody TempUpdateDto dto) {
+        return tempService.updateProfile(dto);
+    }
+
+    @GetMapping
     public PageResponse<TempResponseDto> list(
             @RequestParam(required = false) Long jobId,
             @RequestParam(defaultValue = "name") String sortBy,
@@ -43,26 +53,20 @@ public class TempController {
         if (jobId != null) {
             return tempService.listAvailableForJob(jobId, sortBy, sortDir, page, size);
         }
+
         return tempService.listAll(sortBy, sortDir, page, size);
     }
 
-    @GetMapping("/temps/{id}")
-    public TempWithJobsResponseDto get(@PathVariable long id) {
+    @GetMapping("/{id:\\d+}")
+    public TempWithJobsResponseDto getById(@PathVariable long id) {
         return tempService.getById(id);
     }
 
-    @PatchMapping("/temps/{id}")
-    public TempResponseDto update(@PathVariable long id, @Valid @RequestBody TempUpdateDto dto) {
+    @PatchMapping("/{id:\\d+}")
+    public TempResponseDto update(
+            @PathVariable long id,
+            @Valid @RequestBody TempUpdateDto dto
+    ) {
         return tempService.update(id, dto);
-    }
-
-    @GetMapping("/profile")
-    public TempResponseDto getProfile() {
-        return tempService.getProfile();
-    }
-
-    @PatchMapping("/profile")
-    public TempResponseDto updateProfile(@Valid @RequestBody TempUpdateDto dto) {
-        return tempService.updateProfile(dto);
     }
 }

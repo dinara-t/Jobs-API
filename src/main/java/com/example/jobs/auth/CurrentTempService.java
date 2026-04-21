@@ -1,5 +1,6 @@
 package com.example.jobs.auth;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -19,14 +20,20 @@ public class CurrentTempService {
 
     public Temp getCurrentTempEntity() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
+
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new UnauthorizedException("Unauthorized");
         }
 
         Object principal = auth.getPrincipal();
 
-        if (principal instanceof UserDetailsImpl u) {
-            Long tempId = u.getTemp().getId();
+        if (principal == null) {
+            throw new UnauthorizedException("Unauthorized");
+        }
+
+        if (principal instanceof UserDetailsImpl userDetails) {
+            Long tempId = userDetails.getTemp().getId();
+
             if (tempId == null) {
                 throw new UnauthorizedException("Unauthorized");
             }
@@ -35,8 +42,15 @@ public class CurrentTempService {
                     .orElseThrow(() -> new UnauthorizedException("Unauthorized"));
         }
 
-        String email = principal.toString();
-        return tempRepository.findByEmail(email)
-                .orElseThrow(() -> new UnauthorizedException("Unauthorized"));
+        if (principal instanceof String principalName) {
+            if (principalName.isBlank() || "anonymousUser".equalsIgnoreCase(principalName)) {
+                throw new UnauthorizedException("Unauthorized");
+            }
+
+            return tempRepository.findByEmail(principalName)
+                    .orElseThrow(() -> new UnauthorizedException("Unauthorized"));
+        }
+
+        throw new UnauthorizedException("Unauthorized");
     }
 }

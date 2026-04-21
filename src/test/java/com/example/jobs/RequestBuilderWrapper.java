@@ -12,6 +12,7 @@ public class RequestBuilderWrapper {
 
     private final RequestSpecBuilder requestSpecBuilder;
     private final Map<String, String> cookies = new LinkedHashMap<>();
+    private final Map<String, String> headers = new LinkedHashMap<>();
 
     public RequestBuilderWrapper(int port, String baseUri) {
         this.requestSpecBuilder = new RequestSpecBuilder()
@@ -27,11 +28,31 @@ public class RequestBuilderWrapper {
         return this;
     }
 
+    public RequestBuilderWrapper withCookies(Map<String, String> values) {
+        if (values == null || values.isEmpty()) {
+            return this;
+        }
+
+        values.forEach(this::withCookie);
+        return this;
+    }
+
+    public RequestBuilderWrapper withHeader(String name, String value) {
+        if (name != null && !name.isBlank() && value != null && !value.isBlank()) {
+            headers.put(name, value);
+        }
+        return this;
+    }
+
     public RequestSpecification build() {
         RequestSpecification spec = RestAssured.given().spec(requestSpecBuilder.build());
 
         if (!cookies.isEmpty()) {
             spec.cookies(cookies);
+        }
+
+        if (!headers.isEmpty()) {
+            spec.headers(headers);
         }
 
         return spec;
