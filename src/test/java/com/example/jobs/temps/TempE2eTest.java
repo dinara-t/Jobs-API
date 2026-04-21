@@ -96,7 +96,7 @@ public class TempE2eTest extends E2eTestSuite {
         authenticatedSpec(getTestFixture().getManagerA())
                 .build()
                 .when()
-                .get("/profile")
+                .get("/temps/me")
                 .then()
                 .statusCode(200)
                 .body("email", equalTo("manager.alpha@example.com"));
@@ -114,7 +114,7 @@ public class TempE2eTest extends E2eTestSuite {
                 .build()
                 .when()
                 .body(dto)
-                .patch("/profile")
+                .patch("/temps/me")
                 .then()
                 .statusCode(200)
                 .body("firstName", equalTo("ManagerUpdated"))
