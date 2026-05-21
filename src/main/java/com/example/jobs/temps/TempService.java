@@ -2,9 +2,6 @@ package com.example.jobs.temps;
 
 import java.util.Set;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +27,7 @@ public class TempService {
     private final TempHierarchyService tempHierarchyService;
     private final PasswordEncoder passwordEncoder;
     private final TempMapper tempMapper;
+    private final TempQueryService tempQueryService;
 
     public TempService(
             TempRepository tempRepository,
@@ -37,7 +35,8 @@ public class TempService {
             CurrentTempService currentTempService,
             TempHierarchyService tempHierarchyService,
             PasswordEncoder passwordEncoder,
-            TempMapper tempMapper
+            TempMapper tempMapper,
+            TempQueryService tempQueryService
     ) {
         this.tempRepository = tempRepository;
         this.jobRepository = jobRepository;
@@ -45,6 +44,7 @@ public class TempService {
         this.tempHierarchyService = tempHierarchyService;
         this.passwordEncoder = passwordEncoder;
         this.tempMapper = tempMapper;
+        this.tempQueryService = tempQueryService;
     }
 
     @Transactional
@@ -72,7 +72,7 @@ public class TempService {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
-        Page<TempResponseDto> result = findTempsPage(visibleIds, sortBy, sortDir, page, size)
+        var result = tempQueryService.findTempsPage(visibleIds, sortBy, sortDir, page, size)
                 .map(tempMapper::toDto);
 
         return PageResponse.from(result);
@@ -117,14 +117,22 @@ public class TempService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<TempResponseDto> listAvailableForJob(long jobId, String sortBy, String sortDir, int page, int size) {
+    public PageResponse<TempResponseDto> listAvailableForJob(
+            long jobId,
+            String sortBy,
+            String sortDir,
+            int page,
+            int size
+    ) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> assignableIds = tempHierarchyService.getSelfAndDescendantIds(current);
 
-        Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+
         ensureJobVisible(job, assignableIds);
 
-        Page<TempResponseDto> result = findAvailableTempsPage(
+        var result = tempQueryService.findAvailableTempsPage(
                         assignableIds,
                         job.getStartDate(),
                         job.getEndDate(),
@@ -137,98 +145,6 @@ public class TempService {
                 .map(tempMapper::toDto);
 
         return PageResponse.from(result);
-    }
-
-    private Page<Temp> findTempsPage(Set<Long> visibleIds, String sortBy, String sortDir, int page, int size) {
-        String normalizedSortBy = normalizeSortBy(sortBy);
-        Sort.Direction direction = parseDirection(sortDir);
-        PageRequest pageable = PageRequest.of(normalizePage(page), normalizeSize(size), buildSort(normalizedSortBy, direction));
-
-        if ("jobcount".equals(normalizedSortBy)) {
-            if (direction == Sort.Direction.DESC) {
-                return tempRepository.findVisibleTempsOrderByJobCountDesc(visibleIds, pageable);
-            }
-            return tempRepository.findVisibleTempsOrderByJobCountAsc(visibleIds, pageable);
-        }
-
-        return tempRepository.findVisibleTemps(visibleIds, pageable);
-    }
-
-    private Page<Temp> findAvailableTempsPage(
-            Set<Long> assignableIds,
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate,
-            Long excludeJobId,
-            String sortBy,
-            String sortDir,
-            int page,
-            int size
-    ) {
-        String normalizedSortBy = normalizeSortBy(sortBy);
-        Sort.Direction direction = parseDirection(sortDir);
-        PageRequest pageable = PageRequest.of(normalizePage(page), normalizeSize(size), buildSort(normalizedSortBy, direction));
-
-        if ("jobcount".equals(normalizedSortBy)) {
-            if (direction == Sort.Direction.DESC) {
-                return tempRepository.findAvailableTempsForRangeOrderByJobCountDesc(
-                        assignableIds,
-                        startDate,
-                        endDate,
-                        excludeJobId,
-                        pageable
-                );
-            }
-            return tempRepository.findAvailableTempsForRangeOrderByJobCountAsc(
-                    assignableIds,
-                    startDate,
-                    endDate,
-                    excludeJobId,
-                    pageable
-            );
-        }
-
-        return tempRepository.findAvailableTempsForRange(
-                assignableIds,
-                startDate,
-                endDate,
-                excludeJobId,
-                pageable
-        );
-    }
-
-    private Sort buildSort(String sortBy, Sort.Direction direction) {
-        if ("id".equals(sortBy)) {
-            return Sort.by(
-                    new Sort.Order(direction, "id")
-            );
-        }
-
-        return Sort.by(
-                new Sort.Order(direction, "firstName"),
-                new Sort.Order(direction, "lastName"),
-                new Sort.Order(direction, "id")
-        );
-    }
-
-    private String normalizeSortBy(String sortBy) {
-        if (sortBy == null || sortBy.isBlank()) {
-            return "name";
-        }
-
-        String normalized = sortBy.trim().toLowerCase();
-        if ("id".equals(normalized) || "name".equals(normalized) || "jobcount".equals(normalized)) {
-            return normalized;
-        }
-
-        throw new BadRequestException("Invalid temps sortBy value");
-    }
-
-    private Sort.Direction parseDirection(String sortDir) {
-        try {
-            return Sort.Direction.fromString(sortDir == null || sortDir.isBlank() ? "asc" : sortDir.trim());
-        } catch (IllegalArgumentException ex) {
-            throw new BadRequestException("Invalid sort direction");
-        }
     }
 
     private void applyUpdate(Temp target, TempUpdateDto dto, Temp actingUser) {
@@ -304,17 +220,6 @@ public class TempService {
         if (!visibleTempIds.contains(job.getTemp().getId())) {
             throw new NotFoundException("Job not found");
         }
-    }
-
-    private int normalizePage(int page) {
-        return Math.max(page, 0);
-    }
-
-    private int normalizeSize(int size) {
-        if (size < 1) {
-            return 10;
-        }
-        return Math.min(size, 100);
     }
 
     private String normalizeEmail(String email) {
