@@ -29,18 +29,21 @@ public class JobService {
     private final TempRepository tempRepository;
     private final CurrentTempService currentTempService;
     private final TempHierarchyService tempHierarchyService;
+    private final JobMapper jobMapper;
 
-    public JobService(
-            JobRepository jobRepository,
-            TempRepository tempRepository,
-            CurrentTempService currentTempService,
-            TempHierarchyService tempHierarchyService
-    ) {
-        this.jobRepository = jobRepository;
-        this.tempRepository = tempRepository;
-        this.currentTempService = currentTempService;
-        this.tempHierarchyService = tempHierarchyService;
-    }
+public JobService(
+        JobRepository jobRepository,
+        TempRepository tempRepository,
+        CurrentTempService currentTempService,
+        TempHierarchyService tempHierarchyService,
+        JobMapper jobMapper
+) {
+    this.jobRepository = jobRepository;
+    this.tempRepository = tempRepository;
+    this.currentTempService = currentTempService;
+    this.tempHierarchyService = tempHierarchyService;
+    this.jobMapper = jobMapper;
+}
 
     @Transactional
     public JobResponseDto create(JobCreateDto dto) {
@@ -67,7 +70,7 @@ public class JobService {
         }
 
         Job saved = jobRepository.save(job);
-        return toDto(saved);
+        return jobMapper.toDto(saved);
     }
 
     @Transactional
@@ -105,7 +108,7 @@ public class JobService {
             }
         }
 
-        return toDto(jobRepository.save(job));
+        return jobMapper.toDto(jobRepository.save(job));
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +123,7 @@ public class JobService {
         );
 
         Page<JobResponseDto> result = jobRepository.findVisibleJobs(visibleTempIds, assigned, pageable)
-                .map(this::toDto);
+                .map(jobMapper::toDto);
 
         return PageResponse.from(result);
     }
@@ -133,7 +136,7 @@ public class JobService {
         Job job = jobRepository.findVisibleById(id, visibleTempIds)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
-        return toDto(job);
+        return jobMapper.toDto(job);
     }
 
     private Sort buildSort(String sortBy, String sortDir) {
