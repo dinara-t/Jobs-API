@@ -20,11 +20,6 @@ public class TempFactory extends BaseFactory {
         this.passwordEncoder = passwordEncoder;
     }
 
-    @Override
-    public boolean repoEmpty() {
-        return tempRepository.count() == 0;
-    }
-
     public Temp create(TempFactoryOptions options) {
         Temp temp = new Temp();
 

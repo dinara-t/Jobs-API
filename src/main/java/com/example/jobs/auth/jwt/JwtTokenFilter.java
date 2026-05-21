@@ -2,6 +2,8 @@ package com.example.jobs.auth.jwt;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -19,6 +21,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class JwtTokenFilter extends OncePerRequestFilter {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenFilter.class);
 
     private final JwtUtils jwtUtils;
     private final JwtProperties jwtProperties;
@@ -67,7 +71,8 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                logger.debug("JWT authentication failed: {}", ex.getMessage());
             }
         }
 

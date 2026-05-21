@@ -16,6 +16,4 @@ public abstract class BaseFactory {
     protected int incrementAndGet() {
         return counter.incrementAndGet();
     }
-
-    public abstract boolean repoEmpty();
 }

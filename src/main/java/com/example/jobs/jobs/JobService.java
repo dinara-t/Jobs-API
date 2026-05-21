@@ -15,7 +15,6 @@ import com.example.jobs.common.exception.BadRequestException;
 import com.example.jobs.common.exception.NotFoundException;
 import com.example.jobs.jobs.dtos.JobCreateDto;
 import com.example.jobs.jobs.dtos.JobResponseDto;
-import com.example.jobs.jobs.dtos.JobTempDto;
 import com.example.jobs.jobs.dtos.JobUpdateDto;
 import com.example.jobs.jobs.entities.Job;
 import com.example.jobs.temps.TempHierarchyService;
@@ -31,19 +30,19 @@ public class JobService {
     private final TempHierarchyService tempHierarchyService;
     private final JobMapper jobMapper;
 
-public JobService(
-        JobRepository jobRepository,
-        TempRepository tempRepository,
-        CurrentTempService currentTempService,
-        TempHierarchyService tempHierarchyService,
-        JobMapper jobMapper
-) {
-    this.jobRepository = jobRepository;
-    this.tempRepository = tempRepository;
-    this.currentTempService = currentTempService;
-    this.tempHierarchyService = tempHierarchyService;
-    this.jobMapper = jobMapper;
-}
+    public JobService(
+            JobRepository jobRepository,
+            TempRepository tempRepository,
+            CurrentTempService currentTempService,
+            TempHierarchyService tempHierarchyService,
+            JobMapper jobMapper
+    ) {
+        this.jobRepository = jobRepository;
+        this.tempRepository = tempRepository;
+        this.currentTempService = currentTempService;
+        this.tempHierarchyService = tempHierarchyService;
+        this.jobMapper = jobMapper;
+    }
 
     @Transactional
     public JobResponseDto create(JobCreateDto dto) {
@@ -83,6 +82,7 @@ public JobService(
 
         LocalDate newStart = dto.getStartDate() != null ? dto.getStartDate() : job.getStartDate();
         LocalDate newEnd = dto.getEndDate() != null ? dto.getEndDate() : job.getEndDate();
+
         validateDateRange(newStart, newEnd);
 
         if (dto.getName() != null && !dto.getName().isBlank()) {
@@ -108,7 +108,8 @@ public JobService(
             }
         }
 
-        return jobMapper.toDto(jobRepository.save(job));
+        Job saved = jobRepository.save(job);
+        return jobMapper.toDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -162,6 +163,7 @@ public JobService(
         }
 
         String normalized = sortBy.trim().toLowerCase();
+
         if ("date".equals(normalized) || "name".equals(normalized)) {
             return normalized;
         }
@@ -205,26 +207,7 @@ public JobService(
         if (size < 1) {
             return 10;
         }
+
         return Math.min(size, 100);
-    }
-
-    private JobResponseDto toDto(Job job) {
-        JobTempDto tempDto = null;
-
-        if (job.getTemp() != null) {
-            tempDto = new JobTempDto(
-                    job.getTemp().getId(),
-                    job.getTemp().getFirstName(),
-                    job.getTemp().getLastName()
-            );
-        }
-
-        return new JobResponseDto(
-                job.getId(),
-                job.getName(),
-                job.getStartDate(),
-                job.getEndDate(),
-                tempDto
-        );
     }
 }
