@@ -1,6 +1,5 @@
 package com.example.jobs.temps;
 
-import java.util.List;
 import java.util.Set;
 
 import org.springframework.data.domain.Page;
@@ -16,7 +15,6 @@ import com.example.jobs.common.exception.BadRequestException;
 import com.example.jobs.common.exception.NotFoundException;
 import com.example.jobs.jobs.JobRepository;
 import com.example.jobs.jobs.entities.Job;
-import com.example.jobs.temps.dtos.JobSummaryDto;
 import com.example.jobs.temps.dtos.TempCreateDto;
 import com.example.jobs.temps.dtos.TempResponseDto;
 import com.example.jobs.temps.dtos.TempUpdateDto;
@@ -31,19 +29,22 @@ public class TempService {
     private final CurrentTempService currentTempService;
     private final TempHierarchyService tempHierarchyService;
     private final PasswordEncoder passwordEncoder;
+    private final TempMapper tempMapper;
 
     public TempService(
             TempRepository tempRepository,
             JobRepository jobRepository,
             CurrentTempService currentTempService,
             TempHierarchyService tempHierarchyService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            TempMapper tempMapper
     ) {
         this.tempRepository = tempRepository;
         this.jobRepository = jobRepository;
         this.currentTempService = currentTempService;
         this.tempHierarchyService = tempHierarchyService;
         this.passwordEncoder = passwordEncoder;
+        this.tempMapper = tempMapper;
     }
 
     @Transactional
@@ -63,7 +64,7 @@ public class TempService {
         temp.setManager(manager);
 
         Temp saved = tempRepository.save(temp);
-        return toDto(saved);
+        return tempMapper.toDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -72,7 +73,7 @@ public class TempService {
         Set<Long> visibleIds = tempHierarchyService.getDescendantIds(current);
 
         Page<TempResponseDto> result = findTempsPage(visibleIds, sortBy, sortDir, page, size)
-                .map(this::toDto);
+                .map(tempMapper::toDto);
 
         return PageResponse.from(result);
     }
@@ -85,7 +86,7 @@ public class TempService {
         Temp temp = tempRepository.findByIdAndIdIn(id, visibleIds)
                 .orElseThrow(() -> new NotFoundException("Temp not found"));
 
-        return toWithJobsDto(temp);
+        return tempMapper.toWithJobsDto(temp);
     }
 
     @Transactional
@@ -98,13 +99,13 @@ public class TempService {
 
         applyUpdate(target, dto, current);
         Temp saved = tempRepository.save(target);
-        return toDto(saved);
+        return tempMapper.toDto(saved);
     }
 
     @Transactional(readOnly = true)
     public TempResponseDto getProfile() {
         Temp current = currentTempService.getCurrentTempEntity();
-        return toDto(current);
+        return tempMapper.toDto(current);
     }
 
     @Transactional
@@ -112,7 +113,7 @@ public class TempService {
         Temp current = currentTempService.getCurrentTempEntity();
         applyUpdate(current, dto, current);
         Temp saved = tempRepository.save(current);
-        return toDto(saved);
+        return tempMapper.toDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -133,7 +134,7 @@ public class TempService {
                         page,
                         size
                 )
-                .map(this::toDto);
+                .map(tempMapper::toDto);
 
         return PageResponse.from(result);
     }
@@ -318,42 +319,5 @@ public class TempService {
 
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase();
-    }
-
-    private TempResponseDto toDto(Temp temp) {
-        Long managerId = temp.getManager() != null ? temp.getManager().getId() : null;
-        long jobCount = temp.getJobs() == null ? 0 : temp.getJobs().size();
-
-        return new TempResponseDto(
-                temp.getId(),
-                temp.getFirstName(),
-                temp.getLastName(),
-                temp.getEmail(),
-                managerId,
-                jobCount
-        );
-    }
-
-    private TempWithJobsResponseDto toWithJobsDto(Temp temp) {
-        Long managerId = temp.getManager() != null ? temp.getManager().getId() : null;
-
-        List<JobSummaryDto> jobs = temp.getJobs()
-                .stream()
-                .map(job -> new JobSummaryDto(
-                        job.getId(),
-                        job.getName(),
-                        job.getStartDate(),
-                        job.getEndDate()
-                ))
-                .toList();
-
-        return new TempWithJobsResponseDto(
-                temp.getId(),
-                temp.getFirstName(),
-                temp.getLastName(),
-                temp.getEmail(),
-                managerId,
-                jobs
-        );
     }
 }
