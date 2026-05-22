@@ -125,12 +125,13 @@ public class TempService {
             int size
     ) {
         Temp current = currentTempService.getCurrentTempEntity();
-        Set<Long> assignableIds = tempHierarchyService.getSelfAndDescendantIds(current);
+        Set<Long> visibleIds = tempHierarchyService.getSelfAndDescendantIds(current);
+        Set<Long> assignableIds = tempHierarchyService.getDescendantIds(current);
 
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
-        ensureJobVisible(job, assignableIds);
+        ensureJobVisible(job, visibleIds);
 
         var result = tempQueryService.findAvailableTempsPage(
                         assignableIds,

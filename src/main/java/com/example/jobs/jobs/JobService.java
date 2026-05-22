@@ -47,7 +47,7 @@ public class JobService {
     @Transactional
     public JobResponseDto create(JobCreateDto dto) {
         Temp current = currentTempService.getCurrentTempEntity();
-        Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
+        Set<Long> assignableTempIds = tempHierarchyService.getDescendantIds(current);
 
         validateDateRange(dto.getStartDate(), dto.getEndDate());
 
@@ -57,12 +57,7 @@ public class JobService {
         job.setEndDate(dto.getEndDate());
 
         if (dto.getTempId() != null) {
-            Temp temp = tempRepository.findById(dto.getTempId())
-                    .orElseThrow(() -> new NotFoundException("Temp not found"));
-
-            if (!visibleTempIds.contains(temp.getId())) {
-                throw new NotFoundException("Temp not found");
-            }
+            Temp temp = resolveAssignableTemp(dto.getTempId(), assignableTempIds);
 
             ensureTempAvailableForRange(temp.getId(), dto.getStartDate(), dto.getEndDate(), 0L);
             job.setTemp(temp);
@@ -76,6 +71,7 @@ public class JobService {
     public JobResponseDto update(long id, JobUpdateDto dto) {
         Temp current = currentTempService.getCurrentTempEntity();
         Set<Long> visibleTempIds = tempHierarchyService.getSelfAndDescendantIds(current);
+        Set<Long> assignableTempIds = tempHierarchyService.getDescendantIds(current);
 
         Job job = jobRepository.findVisibleById(id, visibleTempIds)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
@@ -96,12 +92,7 @@ public class JobService {
             if (dto.getTempId() <= 0) {
                 job.setTemp(null);
             } else {
-                Temp temp = tempRepository.findById(dto.getTempId())
-                        .orElseThrow(() -> new NotFoundException("Temp not found"));
-
-                if (!visibleTempIds.contains(temp.getId())) {
-                    throw new NotFoundException("Temp not found");
-                }
+                Temp temp = resolveAssignableTemp(dto.getTempId(), assignableTempIds);
 
                 ensureTempAvailableForRange(temp.getId(), newStart, newEnd, job.getId());
                 job.setTemp(temp);
@@ -138,6 +129,17 @@ public class JobService {
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
         return jobMapper.toDto(job);
+    }
+
+    private Temp resolveAssignableTemp(Long tempId, Set<Long> assignableTempIds) {
+        Temp temp = tempRepository.findById(tempId)
+                .orElseThrow(() -> new NotFoundException("Temp not found"));
+
+        if (!assignableTempIds.contains(temp.getId())) {
+            throw new BadRequestException("Selected user is not assignable to jobs. Choose one of the available temps for this job.");
+        }
+
+        return temp;
     }
 
     private Sort buildSort(String sortBy, String sortDir) {
