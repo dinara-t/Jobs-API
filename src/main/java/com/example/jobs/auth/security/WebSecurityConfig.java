@@ -68,9 +68,10 @@ public class WebSecurityConfig {
         csrfTokenRepository.setCookiePath("/");
 
         http
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfTokenRepository)
-                )
+            .csrf(csrf -> csrf
+        .ignoringRequestMatchers("/jobs/**", "/temps/**")
+        .csrfTokenRepository(csrfTokenRepository)
+)
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
                     List<String> origins = Arrays.stream(allowedOrigins.split(","))
