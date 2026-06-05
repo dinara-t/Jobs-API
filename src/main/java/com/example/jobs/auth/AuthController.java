@@ -17,7 +17,6 @@ import com.example.jobs.auth.config.JwtProperties;
 import com.example.jobs.auth.dtos.LoginRequest;
 import com.example.jobs.auth.jwt.JwtUtils;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -39,10 +38,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Void> login(
-            @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest
-    ) {
+    public ResponseEntity<Void> login(@Valid @RequestBody LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
@@ -50,13 +46,20 @@ public class AuthController {
         String token = jwtUtils.generateToken(authentication);
         String cookieName = resolveCookieName();
 
-        ResponseCookie cookie = ResponseCookie.from(cookieName, token)
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(cookieName, token)
                 .httpOnly(true)
-                .secure(httpRequest.isSecure())
-                .sameSite("Lax")
+                .secure(true)
+                .sameSite("None")
                 .path("/")
-                .maxAge(jwtProperties.getExpirySeconds())
-                .build();
+                .maxAge(jwtProperties.getExpirySeconds());
+
+        String cookieDomain = resolveCookieDomain();
+
+        if (cookieDomain != null) {
+            cookieBuilder.domain(cookieDomain);
+        }
+
+        ResponseCookie cookie = cookieBuilder.build();
 
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -64,16 +67,23 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
+    public ResponseEntity<Void> logout() {
         String cookieName = resolveCookieName();
 
-        ResponseCookie cookie = ResponseCookie.from(cookieName, "")
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(cookieName, "")
                 .httpOnly(true)
-                .secure(httpRequest.isSecure())
-                .sameSite("Lax")
+                .secure(true)
+                .sameSite("None")
                 .path("/")
-                .maxAge(0)
-                .build();
+                .maxAge(0);
+
+        String cookieDomain = resolveCookieDomain();
+
+        if (cookieDomain != null) {
+            cookieBuilder.domain(cookieDomain);
+        }
+
+        ResponseCookie cookie = cookieBuilder.build();
 
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -85,5 +95,12 @@ public class AuthController {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .orElse("jwt");
+    }
+
+    private String resolveCookieDomain() {
+        return Optional.ofNullable(jwtProperties.getCookieDomain())
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .orElse(null);
     }
 }

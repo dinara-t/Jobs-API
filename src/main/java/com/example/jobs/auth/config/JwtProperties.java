@@ -7,7 +7,15 @@ public class JwtProperties {
     private String secret;
     private long expiryMs;
     private String cookieName;
+private String cookieDomain;
 
+public String getCookieDomain() {
+    return cookieDomain;
+}
+
+public void setCookieDomain(String cookieDomain) {
+    this.cookieDomain = cookieDomain;
+}
     public String getSecret() {
         return secret;
     }
