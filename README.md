@@ -1,282 +1,203 @@
-# Jobs API
+# Jobs Workforce Management API
 
-Spring Boot REST API for managing jobs, temps, authentication, authorisation, availability checks, and job assignment workflows.
+A secure Spring Boot REST API powering a workforce scheduling and job management platform.
 
-## Tech stack
+This application provides workforce hierarchy management, job scheduling, assignment validation, authentication, and business rule enforcement for temporary workforce operations.
+
+---
+
+## Project Overview
+
+The API was designed to support workforce management scenarios where:
+
+- Managers supervise multiple workers
+- Jobs require worker assignments
+- Scheduling conflicts must be prevented
+- Access control must be enforced
+- Workforce visibility follows organisational hierarchy
+
+The project evolved from a CRUD application into a production-ready backend with authentication, security, automated testing, and cloud deployment.
+
+---
+
+## Core Features
+
+### Authentication & Security
+
+- Spring Security
+- JWT Authentication
+- Secure HttpOnly Cookies
+- CSRF Protection
+- BCrypt Password Hashing
+- Protected Endpoints
+- CORS Configuration
+
+### Workforce Management
+
+- Create workers
+- Update workers
+- Delete workers
+- Workforce hierarchy management
+- Recursive manager visibility
+
+### Job Management
+
+- Create jobs
+- Update jobs
+- Delete jobs
+- Assign workers
+- Unassign workers
+- Availability validation
+- Overlapping assignment prevention
+
+### API Features
+
+- RESTful API design
+- Pagination
+- Sorting
+- Filtering
+- DTO mapping
+- Validation
+- Global exception handling
+
+### Documentation
+
+- OpenAPI / Swagger
+
+---
+
+## Technology Stack
+
+### Backend
 
 - Java 21
-- Spring Boot 3.5.10
-- Spring Web
+- Spring Boot
 - Spring Security
 - Spring Data JPA
+- Hibernate
+
+### Database
+
 - MySQL
-- H2 for tests
-- JWT via `jjwt`
-- Bean validation
-- SpringDoc OpenAPI
-- Rest Assured E2E tests
+- Amazon Aurora
+- Amazon RDS
+
+### Testing
+
+- JUnit 5
+- Rest Assured
+- H2 Database
+
+### Build & CI
+
 - Maven
+- GitHub Actions
 
-## Main responsibilities
+---
 
-- Authenticate temps through `/auth/login`.
-- Store JWT authentication in an HTTP-only cookie.
-- Provide CSRF tokens through `/csrf/csrf-token`.
-- Protect all business endpoints.
-- Return only jobs and temps visible to the logged-in temp.
-- Prevent temps from being assigned to overlapping jobs.
-- Support job creation, updates, assignment, unassignment, pagination, sorting, and filtering.
-- Support temp creation, profile updates, temp updates, availability listing, pagination, and sorting.
-- Return consistent JSON error responses.
-
-## Prerequisites
-
-- Java 21
-- MySQL running locally
-- A database user with permission to create/use the configured database
-
-## Environment variables
-
-Create a `.env` file in the API project root:
-
-```properties
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=jobs_db
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-JWT_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-JWT_COOKIE_NAME=jwt
-JWT_TOKEN_EXPIRY=86400000
-AUTH_USERNAME=admin
-AUTH_PASSWORD=admin12345
-CORS_ALLOWED_ORIGINS=http://localhost:5173
-SERVER_PORT=8080
-```
-
-`JWT_SECRET` must be at least 256 bits for HS256 signing. A short value can stop the application from starting.
-
-## Install and run
-
-From the API project folder:
-
-```bash
-./mvnw spring-boot:run
-```
-
-On Windows PowerShell:
-
-```bash
-./mvnw.cmd spring-boot:run
-```
-
-The API runs on:
+## Architecture
 
 ```text
-http://localhost:8080
+Controller Layer
+        │
+        ▼
+Service Layer
+        │
+        ▼
+Repository Layer
+        │
+        ▼
+MySQL / Aurora
 ```
 
-## Development data
+---
 
-With the `dev` profile active, the API seeds:
+## Cloud Deployment
 
-- One admin user: `admin@example.com` / `admin12345`
-- Managers reporting to admin
-- Employees reporting to managers
-- Jobs with future date ranges
-- Some assigned and unassigned jobs
+Production infrastructure includes:
 
-Generated temps use the default password:
+- AWS Elastic Beanstalk
+- Amazon Aurora
+- Amazon RDS
+- AWS Route 53
+- AWS Certificate Manager
+- HTTPS Custom Domain
 
-```text
-password12345
-```
+This deployment provided hands-on experience with real-world cloud infrastructure rather than local-only development.
 
-## Scripts and commands
+---
 
-```bash
-./mvnw clean test -Dspring.profiles.active=test
-./mvnw spring-boot:run
-./mvnw clean package
-```
+## Testing Strategy
 
-## Authentication and CSRF
+The project includes:
 
-Login returns `204 No Content` and sets the JWT cookie.
+### Unit Testing
 
-```http
-POST /auth/login
-```
+- Service layer testing
+- Validation testing
+- Business rule testing
 
-Request body:
+### Integration Testing
 
-```json
-{
-  "username": "admin@example.com",
-  "password": "admin12345"
-}
-```
+- Repository testing
+- Database interaction testing
 
-Unsafe requests require a CSRF token. Fetch one first:
+### End-to-End Testing
 
-```http
-GET /csrf/csrf-token
-```
+- Rest Assured
+- Full API request lifecycle testing
 
-The response contains the token and header name. Send that token in the returned header name for `POST`, `PATCH`, `PUT`, and `DELETE` requests.
+### Continuous Integration
 
-## API endpoints
+GitHub Actions automatically:
 
-### Auth
+- Builds the application
+- Executes tests
+- Validates pull requests
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/auth/login` | Logs in and sets the JWT cookie |
-| `POST` | `/auth/logout` | Clears the JWT cookie |
-| `GET` | `/csrf/csrf-token` | Returns a CSRF token |
-| `GET` | `/health` | Health check |
+---
 
-### Jobs
+## Security Highlights
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/jobs` | Creates a job |
-| `PATCH` | `/jobs/{id}` | Updates a job, assigns a temp, or unassigns a temp |
-| `GET` | `/jobs` | Lists visible jobs with pagination and sorting |
-| `GET` | `/jobs?assigned=true` | Lists assigned visible jobs |
-| `GET` | `/jobs?assigned=false` | Lists unassigned visible jobs |
-| `GET` | `/jobs/{id}` | Returns a visible job by ID |
+Implemented modern security practices including:
 
-Supported list parameters:
+- JWT authentication
+- Secure cookie storage
+- CSRF protection
+- Password hashing
+- Role-based access control
+- Endpoint protection
 
-| Parameter | Values | Default |
-|---|---|---|
-| `assigned` | `true`, `false` | none |
-| `sortBy` | `date`, `name` | `date` |
-| `sortDir` | `asc`, `desc` | `asc` |
-| `page` | number | `0` |
-| `size` | number | `10` |
+---
 
-Example job update body:
+## What I Learned
 
-```json
-{
-  "tempId": 5
-}
-```
+This project became my primary backend learning platform.
 
-To unassign a job, send `tempId` as `null` if supported by the current service implementation:
+Major learning outcomes:
 
-```json
-{
-  "tempId": null
-}
-```
+- Designing REST APIs
+- Layered application architecture
+- Spring Security implementation
+- Authentication and authorisation
+- Database design
+- ORM with JPA and Hibernate
+- Writing integration tests
+- Automated CI pipelines
+- AWS deployment workflows
+- Production debugging
+- Security best practices
+- Managing business rules within service layers
 
-### Temps
+Most importantly, I learned how to evolve a project from a simple CRUD application into a production-ready backend system.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/temps` | Creates a temp |
-| `GET` | `/temps/me` | Returns the current logged-in temp |
-| `PATCH` | `/temps/me` | Updates the current logged-in temp |
-| `GET` | `/temps` | Lists visible temps |
-| `GET` | `/temps?jobId={jobId}` | Lists temps available for a job |
-| `GET` | `/temps/{id}` | Returns a visible temp and their assigned jobs |
-| `PATCH` | `/temps/{id}` | Updates a visible temp |
+---
 
-Supported list parameters:
+## Future Improvements
 
-| Parameter | Values | Default |
-|---|---|---|
-| `jobId` | number | none |
-| `sortBy` | `id`, `name`, `jobCount` | `name` |
-| `sortDir` | `asc`, `desc` | `asc` |
-| `page` | number | `0` |
-| `size` | number | `10` |
-
-## Response examples
-
-Job response:
-
-```json
-{
-  "id": 1,
-  "name": "Site Supervisor",
-  "startDate": "2026-04-20",
-  "endDate": "2026-04-22",
-  "temp": {
-    "id": 4,
-    "firstName": "Alex",
-    "lastName": "Taylor"
-  }
-}
-```
-
-Paged response:
-
-```json
-{
-  "items": [],
-  "page": 0,
-  "size": 10,
-  "totalItems": 0,
-  "totalPages": 0,
-  "hasNext": false,
-  "hasPrevious": false
-}
-```
-
-Error response:
-
-```json
-{
-  "timestamp": "2026-05-05T00:00:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "Validation failed",
-  "path": "/jobs",
-  "validationErrors": []
-}
-```
-
-## Swagger/OpenAPI
-
-When the API is running, Swagger UI is available at:
-
-```text
-http://localhost:8080/swagger-ui/index.html
-```
-
-## CI
-
-The GitHub Actions workflow runs:
-
-```bash
-mvn clean test -Dspring.profiles.active=test
-```
-
-on pull requests and pushes to `main` or `master`.
-
-## Troubleshooting
-
-### API fails on JWT startup
-
-Use a long enough `JWT_SECRET`. For HS256, use at least 32 bytes, for example a 64-character hex string.
-
-### UI cannot call API
-
-Check:
-
-- API is running on `8080`.
-- `CORS_ALLOWED_ORIGINS` includes `http://localhost:5173`.
-- Browser requests use credentials.
-- CSRF token has been fetched before unsafe requests.
-
-### MCP gets 401 or 403 from API
-
-Check:
-
-- User is logged in through the UI.
-- UI forwards cookies to MCP.
-- MCP forwards the JWT cookie and `X-XSRF-TOKEN` to the API.
+- Event-driven architecture
+- Audit logging
+- Worker notifications
+- Advanced reporting
+- Role management
+- Multi-tenant support
